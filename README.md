@@ -5,7 +5,7 @@
 3. In Project Settings > Environment Variables add:
    - GEMINI_API_KEY = your Google AI Studio key
    - APP_PASSCODE = any password you choose (stops strangers using your key)
-   - MODEL = (optional) a different Gemini model, e.g. gemini-2.5-flash-lite, if the default is rate limited or unavailable
+   - MODEL = (optional) a different Gemini model, e.g. gemini-3.5-flash-lite, if the default is rate limited or unavailable
 4. Redeploy (Deployments > ... > Redeploy). Open the site; the first AI action asks for the passcode.
 
 Notes

@@ -286,7 +286,7 @@ async function llm(text,blob,web){
   let pw=localStorage.getItem('pw');if(pw===null){pw=window.prompt('Passcode?')||'';localStorage.setItem('pw',pw)}
   const res=await fetch('/api/ask',{method:'POST',headers:{'content-type':'application/json','x-pass':pw},body:JSON.stringify({prompt:text,image:blob?await b64(blob):null,web:!!web})});
   if(res.status===401){localStorage.removeItem('pw');throw{code:'auth'}}
-  if(res.status===429)throw{code:'rate_limited'};if(!res.ok){let m='';try{m=(await res.json()).detail||''}catch(e){}throw{code:'fail',message:m}}return res.json();
+  if(res.status===429)throw{code:'rate_limited'};if(!res.ok){let m='',tx='';try{tx=await res.text();m=JSON.parse(tx).detail||''}catch(e){}throw{code:'fail',message:m||('HTTP '+res.status+' '+tx.replace(/\s+/g,' ').slice(0,120))}}return res.json();
 }
 const ERR={auth:'Wrong passcode. Try again.',not_granted:'You need to allow Claude to be used.',rate_limited:'Too fast. Wait a moment.',none:'AI is not available here.',empty:'No matches. Try different words.',label:'Could not read the label. Retake it closer, flat, and in good light.',fail:'Server error. Check the API key and model in Vercel.'};
 async function run(text,blob,done,web){

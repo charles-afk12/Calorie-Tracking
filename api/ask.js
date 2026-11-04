@@ -21,22 +21,33 @@ module.exports = async (req, res) => {
     parts.push({ inline_data: { mime_type: 'image/jpeg', data: image } });
   }
   parts.push({ text: prompt + '\n\nYou cannot browse the web. If a field asks for src, always use "estimate" and leave url empty. Respond with JSON only.' });
-  const model = process.env.MODEL || 'gemini-2.5-flash';
+  const model = process.env.MODEL || 'gemini-3.8-flash';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
+  const call = async (cfg) => {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 45000);
+    try {
+      return await fetch(url, {
+        method: 'POST',
+        signal: ctl.signal,
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: cfg })
+      });
+    } finally { clearTimeout(timer); }
+  };
+  const base = { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 8192 };
   let r;
   try {
-    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 4096 }
-      })
-    });
-  } catch (e) { return res.status(502).json({ error: 'upstream', detail: 'could not reach Google' }); }
+    // Gemini 3 models think a lot by default, which is slow. Ask for low thinking; retry plain if rejected.
+    r = await call(/^gemini-3/.test(model) ? { ...base, thinkingConfig: { thinkingLevel: 'low' } } : base);
+    if (r.status === 400 && /^gemini-3/.test(model)) r = await call(base);
+  } catch (e) {
+    return res.status(504).json({ error: 'timeout', detail: 'Google took too long or could not be reached' });
+  }
   if (!r.ok) {
     let msg = '';
     try { msg = ((await r.json()).error || {}).message || ''; } catch (e) {}
-    return res.status(r.status === 429 ? 429 : 502).json({ error: 'upstream', detail: msg.slice(0, 160) });
+    return res.status(r.status === 429 ? 429 : 502).json({ error: 'upstream', detail: ('Google ' + r.status + ': ' + msg).slice(0, 200) });
   }
   const d = await r.json();
   const t = (((d.candidates || [])[0] || {}).content || {}).parts;
